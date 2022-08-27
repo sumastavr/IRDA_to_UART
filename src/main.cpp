@@ -34,7 +34,7 @@
 //#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
-#define IR_RECEIVE_PIN  2
+#define IR_RECEIVE_PIN  1
 
 #if defined(APPLICATION_PIN)
 #define DEBUG_BUTTON_PIN    APPLICATION_PIN // if low, print timing for each received data set
@@ -165,7 +165,7 @@ void loop() {
         /*
          * Finally check the received data and perform actions according to the received address and commands
          */
-        if (IrReceiver.decodedIRData.address == 1) {
+        if (IrReceiver.decodedIRData.address == 0) {
             
             Serial1.write(IrReceiver.decodedIRData.command);
             Serial.print(IrReceiver.decodedIRData.command);
@@ -185,5 +185,5 @@ void loop() {
      *     strip.show();
      * }
      */
-
+    //Serial.println("run");
 }
