@@ -34,7 +34,7 @@
 //#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
-#define IR_RECEIVE_PIN  1
+#define IR_RECEIVE_PIN  2
 
 #if defined(APPLICATION_PIN)
 #define DEBUG_BUTTON_PIN    APPLICATION_PIN // if low, print timing for each received data set
@@ -53,7 +53,41 @@
 //  mySerial.IrqHandler();
 //}
 
+bool panortilt = true;	   // true = adjusting the pan, while false = adjusting the tilt
+const int socResetPin = 12; // reset pins connected to the SoC
+
+const int togglePTCode = 8;
+
+const int increasePCode = 1;
+const int increaseICode = 2;
+const int increaseDCode = 3;
+
+const int decreasePCode = 4;
+const int decreaseICode = 5;
+const int decreaseDCode = 6;
+
+const int commandIncreasePan_P = 240;
+const int commandIncreasePan_I = 241;
+const int commandIncreasePan_D = 242;
+
+const int commandDecreasePan_P = 243;
+const int commandDecreasePan_I = 244;
+const int commandDecreasePan_D = 245;
+
+const int commandIncreaseTilt_P = 230;
+const int commandIncreaseTilt_I = 231;
+const int commandIncreaseTilt_D = 232;
+
+const int commandDecreaseTilt_P = 233;
+const int commandDecreaseTilt_I = 234;
+const int commandDecreaseTilt_D = 235;
+
+
 void setup() {
+
+pinMode(socResetPin, OUTPUT);
+digitalWrite(socResetPin, HIGH);
+
 #if FLASHEND >= 0x3FFF  // For 16k flash or more, like ATtiny1604. Code does not fit in program memory of ATtiny85 etc.
     pinMode(DEBUG_BUTTON_PIN, INPUT_PULLUP);
 #endif
@@ -167,16 +201,129 @@ void loop() {
          */
         if (IrReceiver.decodedIRData.address == 0) {
             
-            Serial1.write(IrReceiver.decodedIRData.command);
-            Serial.print(IrReceiver.decodedIRData.command);
+            //Serial1.write(IrReceiver.decodedIRData.command);
+            //Serial.print(IrReceiver.decodedIRData.command);
 
-            if (IrReceiver.decodedIRData.command == 0x10) {
-                // do something
-            } else if (IrReceiver.decodedIRData.command == 0x11) {
-                // do something else
-            }
+            				// if code detected is special code for adjusting the PID of either the pan or the tilt
+            if  (IrReceiver.decodedIRData.command == togglePTCode) 
+			{
+				                 // do something
+				panortilt = !panortilt;
+                delay(500);
+				if (panortilt)
+				{
+					Serial.print("adjusting the pan");
+				}
+				else
+				{
+					Serial.print("adjusting the tilt");
+				}
+				            
+			}
+			 else if  (IrReceiver.decodedIRData.command == increasePCode) 
+			{
+				                 // send command to increase Proportional gain
+				
+                Serial.print("Increase Proportional");
+                if (panortilt)
+				{
+					Serial1.write(commandIncreasePan_P);
+				}
+				else
+				{
+					Serial1.write(commandIncreaseTilt_P);
+				}
+				            
+			}
+			else if  (IrReceiver.decodedIRData.command == increaseICode) 
+			{
+				                 // send command to increase Integral gain
+				Serial.print("Increase Integral");
+                if (panortilt)
+				{
+					Serial1.write(commandIncreasePan_I);
+				}
+				else
+				{
+					Serial1.write(commandIncreaseTilt_I);
+				}
+				            
+			}
+			else if  (IrReceiver.decodedIRData.command == increaseDCode) 
+			{
+				                 // send command to increase derivative gain 
+                Serial.print("Increase Derivative");
+                if (panortilt)
+				{
+					Serial1.write(commandIncreasePan_D);
+				}
+				else
+				{
+					Serial1.write(commandIncreaseTilt_D);
+				}
+				         
+			}
+			else if  (IrReceiver.decodedIRData.command == decreasePCode) 
+			{
+				                 // send command to DECREASE Proportional gain
+				Serial.print("Decrease Proportional");
+                if (panortilt)
+				{
+					Serial1.write(commandDecreasePan_P);
+				}
+				else
+				{
+					Serial1.write(commandDecreaseTilt_P);
+				}
+				            
+			}
+			else if  (IrReceiver.decodedIRData.command == decreaseICode) 
+			{
+				                 // send command to DECREASE Integral gain
+                Serial.print("Decrease Integral");
+				if (panortilt)
+				{
+					Serial1.write(commandDecreasePan_I);
+				}
+				else
+				{
+					Serial1.write(commandDecreaseTilt_I);
+				}
+				            
+			}
+			else if  (IrReceiver.decodedIRData.command == decreaseDCode) 
+			{
+				                 // send command to DECREASE derivative gain 
+                Serial.print("Decrease Derivative");
+                if (panortilt)
+				{
+					Serial1.write(commandDecreasePan_D);
+				}
+				else
+				{
+					Serial1.write(commandDecreaseTilt_D);
+				}
+				         
+			}
+			else if  (IrReceiver.decodedIRData.command == socResetPin) 
+			{
+				Serial.print("Resetting SOC");
+                digitalWrite(socResetPin, LOW);
+				delay(200);
+				digitalWrite(socResetPin, HIGH);
+				   
+			}
+			else
+			{
+				// if no specific functions code is detected then forward the code directly to SoC
+				Serial1.write(IrReceiver.decodedIRData.command);
+                Serial.print(IrReceiver.decodedIRData.command);
+			}
+
         }
-    } // if (IrReceiver.decode())
+    } 
+    
+    // if (IrReceiver.decode())
 
     /*
      * Your code here
