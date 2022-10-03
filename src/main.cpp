@@ -1,16 +1,38 @@
 #include <Arduino.h>
+#include <Wire.h>
+
+#include <Adafruit_AS7341.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+
+#include <SparkFunMPU9250-DMP.h>
+
+#include "SparkFun_VL53L1X.h"
+#include <vl53l1x_class.h>
+#include <vl53l1_error_codes.h>
+
+// ToF Sensor initialization
+//Optional interrupt and shutdown pins.
+#define SHUTDOWN_PIN 5
+#define INTERRUPT_PIN 4
+
+SFEVL53L1X distanceSensor;
+
+// Environmental Sensor Initialization
+Adafruit_BME280 bme; 
+
+// Inertial measurement unit initialization
+MPU9250_DMP imu;
+
+Adafruit_AS7341 as7341;
+uint16_t bufferLightReadings[12];
 
 /*
  * Specify which protocol(s) should be used for decoding.
- * If no protocol is defined, all protocols are active.
+ * If no protocol is defined, all protocols are active
  * This must be done before the #include <IRremote.hpp>
  */
-//#define DECODE_LG
-//#define DECODE_NEC
-// etc. see IRremote.hpp
-//
 
-//#define RAW_BUFFER_LENGTH  750  // 750 is the value for air condition remotes.
 
 //#define NO_LED_FEEDBACK_CODE // saves 92 bytes program memory
 #if FLASHEND <= 0x1FFF  // For 8k flash or less, like ATtiny85. Exclude exotic protocols.
@@ -19,22 +41,14 @@
 #define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program memory.
 #  endif
 #endif
-//#define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program memory.
-//#define EXCLUDE_EXOTIC_PROTOCOLS // saves around 650 bytes program memory if all other protocols are active
+
+#define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program memory.
+#define EXCLUDE_EXOTIC_PROTOCOLS // saves around 650 bytes program memory if all other protocols are active
 //#define _IR_MEASURE_TIMING
 
-// MARK_EXCESS_MICROS is subtracted from all marks and added to all spaces before decoding,
-// to compensate for the signal forming of different IR receiver modules.
-//#define MARK_EXCESS_MICROS    20 // 20 is recommended for the cheap VS1838 modules
-
-//#define RECORD_GAP_MICROS 12000 // Activate it for some LG air conditioner protocols
-
-//#define DEBUG // Activate this for lots of lovely debug output from the decoders.
-
-//#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
-#define IR_RECEIVE_PIN  2
+#define IR_RECEIVE_PIN  1
 
 #if defined(APPLICATION_PIN)
 #define DEBUG_BUTTON_PIN    APPLICATION_PIN // if low, print timing for each received data set
@@ -54,9 +68,12 @@
 //}
 
 bool panortilt = true;	   // true = adjusting the pan, while false = adjusting the tilt
-const int socResetPin = 12; // reset pins connected to the SoC
+
+const int socResetPin = 8; // reset pins connected to the SoC
+const int socResetCode = 12;
 
 const int togglePTCode = 8;
+const int savePIDCode = 190;
 
 const int increasePCode = 1;
 const int increaseICode = 2;
@@ -82,9 +99,13 @@ const int commandDecreaseTilt_P = 233;
 const int commandDecreaseTilt_I = 234;
 const int commandDecreaseTilt_D = 235;
 
+long timerReadTof=millis();
+int intervalReadTof=100;
 
 void setup() {
 
+delay(10000);
+Wire.begin();
 pinMode(socResetPin, OUTPUT);
 digitalWrite(socResetPin, HIGH);
 
@@ -122,9 +143,161 @@ digitalWrite(socResetPin, HIGH);
     Serial.println(F(" us are subtracted from all marks and added to all spaces for decoding"));
 #endif
 
+// ToF Sensor initialization process
+
+  Serial.println("VL53L1X Qwiic Test");
+
+  if (distanceSensor.begin() != 0) //Begin returns 0 on a good init
+  {
+    Serial.println("Sensor failed to begin. Please check wiring. Freezing...");
+    while (1){
+      Serial.println("TOF not connecting.");
+      delay(1000);
+    }
+      
+  } else {
+    Serial.println("ToF Sensor online!");
+    distanceSensor.startRanging();
+  }
+
+    unsigned status;
+    status = bme.begin(0x76);  
+    // You can also pass in a Wire library object like &Wire2
+    // status = bme.begin(0x76, &Wire2)
+    if (!status) {
+        Serial.println("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
+        Serial.print("SensorID was: 0x"); Serial.println(bme.sensorID(),16);
+        Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
+        Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
+        Serial.print("        ID of 0x60 represents a BME 280.\n");
+        Serial.print("        ID of 0x61 represents a BME 680.\n");
+        while (1) delay(1000);
+    }
+
+  if (imu.begin() != INV_SUCCESS){
+    while (1)
+    {
+      Serial.println("Unable to communicate with MPU-9250");
+      Serial.println("Check connections, and try again.");
+      Serial.println();
+      delay(5000);
+    }
+  }
+  
+  imu.dmpBegin(DMP_FEATURE_6X_LP_QUAT | // Enable 6-axis quat
+               DMP_FEATURE_GYRO_CAL, // Use gyro calibration
+              10); // Set DMP FIFO rate to 10 Hz
+  // DMP_FEATURE_LP_QUAT can also be used. It uses the 
+  // accelerometer in low-power mode to estimate quat's.
+  // DMP_FEATURE_LP_QUAT and 6X_LP_QUAT are mutually exclusive
+
+  if (!as7341.begin()){
+    Serial.println("Could not find AS7341");
+    while (1) { 
+      Serial.println("CAN't initialise AS7341");
+      delay(1000); 
+      }
+  }
+
+  as7341.setATIME(100);
+  as7341.setASTEP(999); //This combination of ATIME and ASTEP gives an integration time of about 1sec, so with two integrations, that's 2 seconds for a complete set of readings
+  as7341.setGain(AS7341_GAIN_256X);
+  
+  as7341.startReading();
+
+}
+
+String getToFDistance(){
+    //distanceSensor.startRanging(); //Write configuration bytes to initiate measurement
+    
+    while (!distanceSensor.checkForDataReady())
+    {
+        delay(1);
+    }
+
+    String distance = String(distanceSensor.getDistance()); //Get the result of the measurement from the sensor
+    distance+="mm";
+    //distanceSensor.clearInterrupt();
+    //distanceSensor.stopRanging();
+
+    return distance;
+
+    /*
+    Serial.print("Distance(mm): ");
+    Serial.print(distance);
+
+    float distanceInches = distance * 0.0393701;
+    float distanceFeet = distanceInches / 12.0;
+
+    Serial.print("\tDistance(ft): ");
+    Serial.print(distanceFeet, 2);
+
+    Serial.println();
+    */
+}
+
+String getTemperatureStr(){
+    String temp=String(bme.readTemperature(),2);
+    temp+='C';
+    return temp;
+}
+
+String getHumidityStr(){
+    String temp=String(bme.readHumidity(),2);
+    temp+='%';
+    return temp;
+}
+
+String getPressureStr(){
+    String temp=String(bme.readPressure(),2);
+    temp+="Pa";
+    return temp;
+}
+
+String getAltitudeStr(){
+    #define SEALEVELPRESSURE_HPA (1013.25)
+    String temp=String(bme.readAltitude(SEALEVELPRESSURE_HPA));
+    temp+="M";
+    return temp;
+}
+
+String getYawStr(){
+    String temp=String(imu.yaw);
+    temp+="Y";
+    return temp;
+}
+
+String getPitchStr(){
+    String temp=String(imu.pitch);
+    temp+="P";
+    return temp;
+}
+
+String getRollStr(){
+    String temp=String(imu.roll);
+    temp+="R";
+    return temp;
+}
+
+void getLightSensorReadings(){
+    uint16_t readings[12];
+    as7341.getAllChannels(readings);  //Calling this any other time may give you old data
+
+    for (int i=0;i<12;i++){
+        bufferLightReadings[i]=readings[i]; 
+    }
+    
+    as7341.startReading();
+}
+
+bool yourTimeOutCheck()
+{
+  //Fill this in to prevent the possibility of getting stuck forever if you missed the result, or whatever
+  return false;
 }
 
 void loop() {
+
     /*
      * Check if received data is available and if yes, try to decode it.
      * Decoded result is in the IrReceiver.decodedIRData structure.
@@ -133,6 +306,7 @@ void loop() {
      * address is in command is in IrReceiver.decodedIRData.address
      * and up to 32 bit raw data in IrReceiver.decodedIRData.decodedRawData
      */
+
     if (IrReceiver.decode()) {
         Serial.println();
 #if FLASHEND >= 0x3FFF  // For 16k flash or more, like ATtiny1604
@@ -194,6 +368,7 @@ void loop() {
          * !!!Important!!! Enable receiving of the next value,
          * since receiving has stopped after the end of the current received data packet.
          */
+
         IrReceiver.resume();
 
         /*
@@ -305,13 +480,19 @@ void loop() {
 				}
 				         
 			}
-			else if  (IrReceiver.decodedIRData.command == socResetPin) 
+			else if  (IrReceiver.decodedIRData.command == socResetCode) 
 			{
 				Serial.print("Resetting SOC");
                 digitalWrite(socResetPin, LOW);
 				delay(200);
 				digitalWrite(socResetPin, HIGH);
 				   
+			}
+            else if  (IrReceiver.decodedIRData.command == savePIDCode) 
+			{
+				Serial.print("Save PID Constants");
+                Serial1.write(IrReceiver.decodedIRData.command);
+                Serial.print(IrReceiver.decodedIRData.command);
 			}
 			else
 			{
@@ -332,5 +513,92 @@ void loop() {
      *     strip.show();
      * }
      */
-    //Serial.println("run");
+
+        // Check for new data in the FIFO
+    if ( imu.fifoAvailable() )
+    {
+        // Use dmpUpdateFifo to update the ax, gx, mx, etc. values
+        if ( imu.dmpUpdateFifo() == INV_SUCCESS)
+        {
+        // computeEulerAngles can be used -- after updating the
+        // quaternion values -- to estimate roll, pitch, and yaw
+        imu.computeEulerAngles();
+        //printIMUData();
+        }
+    }
+
+  bool timeOutFlag = yourTimeOutCheck();
+  if(as7341.checkReadingProgress() || timeOutFlag ){
+    if(timeOutFlag)
+    {} //Recover/restart/retc.
+    getLightSensorReadings();
+    
+/*
+    Serial.print("ADC0/F1 415nm : ");
+    Serial.println(readings[0]);
+    Serial.print("ADC1/F2 445nm : ");
+    Serial.println(readings[1]);
+    Serial.print("ADC2/F3 480nm : ");
+    Serial.println(readings[2]);
+    Serial.print("ADC3/F4 515nm : ");
+    Serial.println(readings[3]);
+    Serial.print("ADC0/F5 555nm : ");  
+    Serial.println(readings[6]);
+    Serial.print("ADC1/F6 590nm : ");
+    Serial.println(readings[7]);
+    Serial.print("ADC2/F7 630nm : ");
+    Serial.println(readings[8]);
+    Serial.print("ADC3/F8 680nm : ");
+    Serial.println(readings[9]);
+    Serial.print("ADC4/Clear    : ");
+    Serial.println(readings[10]);
+    Serial.print("ADC5/NIR      : ");
+    Serial.println(readings[11]); 
+*/   
+  }
+
+    //if (millis()-timerReadTof>intervalReadTof){
+    
+    byte in = 0;
+    if (Serial.available()>0){
+        in=Serial.read();
+    }
+    
+    if (in==97){
+
+        Serial.print(getToFDistance());
+        Serial.print(" : ");
+        
+        Serial.print(getTemperatureStr());
+        Serial.print(" : ");
+
+        Serial.print(getHumidityStr());
+        Serial.print(" : ");
+
+        Serial.print(getPressureStr());
+        Serial.print(" : ");
+
+        Serial.print(getAltitudeStr());
+        Serial.print(" : ");
+
+        Serial.print(getYawStr());
+        Serial.print(" : ");
+
+        Serial.print(getPitchStr());
+        Serial.print(" : ");
+
+        Serial.print(getRollStr());
+        Serial.print(" : ");
+
+        for (int i=0;i<12;i++){
+            Serial.print(bufferLightReadings[i]);
+            Serial.print(" : ");
+        }
+        
+        Serial.println();
+        //Serial.println(millis()-timerReadTof);
+        timerReadTof=millis();
+    }
+
 }
+
