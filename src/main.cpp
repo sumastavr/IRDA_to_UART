@@ -8,8 +8,10 @@
 #include <SparkFunMPU9250-DMP.h>
 
 #include "SparkFun_VL53L1X.h"
-#include <vl53l1x_class.h>
-#include <vl53l1_error_codes.h>
+//#include <vl53l1x_class.h>
+//#include <vl53l1_error_codes.h>
+
+#define DEBUG
 
 // ToF Sensor initialization
 //Optional interrupt and shutdown pins.
@@ -113,8 +115,8 @@ digitalWrite(socResetPin, HIGH);
     pinMode(DEBUG_BUTTON_PIN, INPUT_PULLUP);
 #endif
 
-    Serial.begin(9600);
-    Serial1.begin(9600);
+    Serial.begin(57600);
+    Serial1.begin(57600);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
@@ -201,7 +203,7 @@ digitalWrite(socResetPin, HIGH);
 
   as7341.setATIME(100);
   as7341.setASTEP(999); //This combination of ATIME and ASTEP gives an integration time of about 1sec, so with two integrations, that's 2 seconds for a complete set of readings
-  as7341.setGain(AS7341_GAIN_256X);
+  as7341.setGain(AS7341_GAIN_64X);
   
   as7341.startReading();
 
@@ -555,11 +557,54 @@ void loop() {
     Serial.print("ADC5/NIR      : ");
     Serial.println(readings[11]); 
 */   
+
   }
 
     //if (millis()-timerReadTof>intervalReadTof){
     
     byte in = 0;
+    if (Serial1.available()>0){
+        in=Serial1.read();
+    }
+    
+    if (in==97){
+
+        Serial1.print(getToFDistance());
+        Serial1.print(" : ");
+        
+        Serial1.print(getTemperatureStr());
+        Serial1.print(" : ");
+
+        Serial1.print(getHumidityStr());
+        Serial1.print(" : ");
+
+        Serial1.print(getPressureStr());
+        Serial1.print(" : ");
+
+        Serial1.print(getAltitudeStr());
+        Serial1.print(" : ");
+
+        Serial1.print(getYawStr());
+        Serial1.print(" : ");
+
+        Serial1.print(getPitchStr());
+        Serial1.print(" : ");
+
+        Serial1.print(getRollStr());
+        Serial1.print(" : ");
+
+        for (int i=0;i<12;i++){
+            Serial1.print(bufferLightReadings[i]);
+            Serial1.print(" : ");
+        }
+        
+        Serial1.println();
+        //Serial.println(millis()-timerReadTof);
+        timerReadTof=millis();
+    }
+
+    #ifdef DEBUG
+
     if (Serial.available()>0){
         in=Serial.read();
     }
@@ -599,6 +644,8 @@ void loop() {
         //Serial.println(millis()-timerReadTof);
         timerReadTof=millis();
     }
+
+    #endif
 
 }
 
