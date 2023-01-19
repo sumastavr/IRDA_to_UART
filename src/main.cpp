@@ -203,7 +203,7 @@ digitalWrite(socResetPin, HIGH);
 
   as7341.setATIME(100);
   as7341.setASTEP(999); //This combination of ATIME and ASTEP gives an integration time of about 1sec, so with two integrations, that's 2 seconds for a complete set of readings
-  as7341.setGain(AS7341_GAIN_64X);
+  as7341.setGain(AS7341_GAIN_8X);
   
   as7341.startReading();
 
@@ -296,6 +296,18 @@ bool yourTimeOutCheck()
 {
   //Fill this in to prevent the possibility of getting stuck forever if you missed the result, or whatever
   return false;
+}
+
+String getDateNow(){
+    String dateNow="01-03-2022";
+
+    return dateNow;
+}
+
+String getTimeNow(){
+    String timeNow="10-23-45";
+
+    return timeNow;
 }
 
 void loop() {
@@ -603,47 +615,58 @@ void loop() {
         timerReadTof=millis();
     }
 
+    // Debug enabled via Serial port to the computer
+    // Otherwise only listen from the Serial 1 that is connected to the K210 SoC
     #ifdef DEBUG
 
-    if (Serial.available()>0){
-        in=Serial.read();
-    }
-    
-    if (in==97){
-
-        Serial.print(getToFDistance());
-        Serial.print(" : ");
-        
-        Serial.print(getTemperatureStr());
-        Serial.print(" : ");
-
-        Serial.print(getHumidityStr());
-        Serial.print(" : ");
-
-        Serial.print(getPressureStr());
-        Serial.print(" : ");
-
-        Serial.print(getAltitudeStr());
-        Serial.print(" : ");
-
-        Serial.print(getYawStr());
-        Serial.print(" : ");
-
-        Serial.print(getPitchStr());
-        Serial.print(" : ");
-
-        Serial.print(getRollStr());
-        Serial.print(" : ");
-
-        for (int i=0;i<12;i++){
-            Serial.print(bufferLightReadings[i]);
-            Serial.print(" : ");
+        if (Serial.available()>0){
+            in=Serial.read();
         }
         
-        Serial.println();
-        //Serial.println(millis()-timerReadTof);
-        timerReadTof=millis();
-    }
+        if (in==97){
+
+            Serial.print(getToFDistance());
+            Serial.print(" : ");
+            
+            Serial.print(getTemperatureStr());
+            Serial.print(" : ");
+
+            Serial.print(getHumidityStr());
+            Serial.print(" : ");
+
+            Serial.print(getPressureStr());
+            Serial.print(" : ");
+
+            Serial.print(getAltitudeStr());
+            Serial.print(" : ");
+
+            Serial.print(getYawStr());
+            Serial.print(" : ");
+
+            Serial.print(getPitchStr());
+            Serial.print(" : ");
+
+            Serial.print(getRollStr());
+            Serial.print(" : ");
+
+            for (int i=0;i<12;i++){
+                Serial.print(bufferLightReadings[i]);
+                Serial.print(" : ");
+            }
+            
+            //Serial.print();
+            Serial.print(millis());
+            timerReadTof=millis();
+
+            Serial.print(" : ");
+
+            Serial.print(getDateNow());
+            Serial.print(" : ");
+
+            Serial.print(getTimeNow());
+            Serial.println(" : ");
+
+        }
 
     #endif
 
