@@ -29,6 +29,16 @@ MPU9250_DMP imu;
 Adafruit_AS7341 as7341;
 uint16_t bufferLightReadings[12];
 
+#define LOGGER
+
+#ifdef LOGGER
+#include "RTClib.h"
+
+RTC_PCF8563 rtc;
+
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+#endif
+
 /*
  * Specify which protocol(s) should be used for decoding.
  * If no protocol is defined, all protocols are active
@@ -106,8 +116,80 @@ int intervalReadTof=100;
 
 void setup() {
 
-delay(10000);
+Serial.begin(57600);
+Serial1.begin(57600);
+
+pinMode(LED_BUILTIN,OUTPUT);
+digitalWrite(LED_BUILTIN,HIGH);
+
+delay(5000);
 Wire.begin();
+
+#ifdef LOGGER
+
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTCs");
+    Serial.flush();
+    while (1) delay(10);
+  }
+   //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  if (rtc.lostPower()) {
+    Serial.println("RTC is NOT initialized, let's set the time!");
+    // When time needs to be set on a new device, or after a power loss, the
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    //
+    // Note: allow 2 seconds after inserting battery or applying external power
+    // without battery before calling adjust(). This gives the PCF8523's
+    // crystal oscillator time to stabilize. If you call adjust() very quickly
+    // after the RTC is powered, lostPower() may still return true.
+  }
+
+  // When time needs to be re-set on a previously configured device, the
+  // following line sets the RTC to the date & time this sketch was compiled
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // This line sets the RTC with an explicit date & time, for example to set
+  // January 21, 2014 at 3am you would call:
+  // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+
+  // When the RTC was stopped and stays connected to the battery, it has
+  // to be restarted by clearing the STOP bit. Let's do this to ensure
+  // the RTC is running.
+  rtc.start();
+#endif
+
+/*
+while(1){
+    DateTime now = rtc.now();
+
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(" (");
+    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+    Serial.print(") ");
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
+
+    Serial.print(" since midnight 1/1/1970 = ");
+    Serial.print(now.unixtime());
+    Serial.print("s = ");
+    Serial.print(now.unixtime() / 86400L);
+    Serial.println("d");
+    delay(3000);
+}
+
+*/
+
 pinMode(socResetPin, OUTPUT);
 digitalWrite(socResetPin, HIGH);
 
@@ -115,8 +197,7 @@ digitalWrite(socResetPin, HIGH);
     pinMode(DEBUG_BUTTON_PIN, INPUT_PULLUP);
 #endif
 
-    Serial.begin(57600);
-    Serial1.begin(57600);
+
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
@@ -206,6 +287,8 @@ digitalWrite(socResetPin, HIGH);
   as7341.setGain(AS7341_GAIN_8X);
   
   as7341.startReading();
+
+  digitalWrite(LED_BUILTIN,LOW);
 
 }
 
@@ -321,6 +404,7 @@ void loop() {
      * and up to 32 bit raw data in IrReceiver.decodedIRData.decodedRawData
      */
 
+#ifndef LOGGER
     if (IrReceiver.decode()) {
         Serial.println();
 #if FLASHEND >= 0x3FFF  // For 16k flash or more, like ATtiny1604
@@ -517,7 +601,8 @@ void loop() {
 
         }
     } 
-    
+#endif
+   
     // if (IrReceiver.decode())
 
     /*
@@ -669,6 +754,6 @@ void loop() {
         }
 
     #endif
-
+    digitalWrite(LED_BUILTIN,LOW);
 }
 
