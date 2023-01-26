@@ -8,6 +8,7 @@
 #include <SparkFunMPU9250-DMP.h>
 
 #include "SparkFun_VL53L1X.h"
+#include <Adafruit_SleepyDog.h>
 //#include <vl53l1x_class.h>
 //#include <vl53l1_error_codes.h>
 
@@ -116,13 +117,15 @@ int intervalReadTof=100;
 
 void setup() {
 
+delay(4000);
+
 Serial.begin(57600);
 Serial1.begin(57600);
 
 pinMode(LED_BUILTIN,OUTPUT);
 digitalWrite(LED_BUILTIN,HIGH);
 
-delay(5000);
+
 Wire.begin();
 
 #ifdef LOGGER
@@ -226,6 +229,8 @@ digitalWrite(socResetPin, HIGH);
     Serial.println(F(" us are subtracted from all marks and added to all spaces for decoding"));
 #endif
 
+Watchdog.enable(4000);
+
 // ToF Sensor initialization process
 
   Serial.println("VL53L1X Qwiic Test");
@@ -236,6 +241,7 @@ digitalWrite(socResetPin, HIGH);
     while (1){
       Serial.println("TOF not connecting.");
       delay(1000);
+      //restart();
     }
       
   } else {
@@ -382,14 +388,24 @@ bool yourTimeOutCheck()
 }
 
 String getDateNow(){
-    String dateNow="01-03-2022";
-
+    String dateNow="";
+    DateTime now = rtc.now();
+    dateNow+=(String)now.day();
+    dateNow+="-";
+    dateNow+=(String)now.month();
+    dateNow+="-";
+    dateNow+=(String)now.year();
     return dateNow;
 }
 
 String getTimeNow(){
-    String timeNow="10-23-45";
-
+    String timeNow="";
+    DateTime now = rtc.now();
+    timeNow+=(String)now.hour();
+    timeNow+="-";
+    timeNow+=(String)now.minute();
+    timeNow+="-";
+    timeNow+=(String)now.second();
     return timeNow;
 }
 
@@ -447,7 +463,7 @@ void loop() {
              * This will give the next CheckForRecordGapsMicros() call a chance to eventually propose a change of the current RECORD_GAP_MICROS value.
              */
 #    if !defined(ESP32)
-            IrReceiver.stop(); // ESP32 uses another timer for tone()
+            IrReceiver.stop(); // ESP32 u ses another timer for tone()
 #    endif
             tone(TONE_PIN, 2200, 8);
 #    if !defined(ESP32)
