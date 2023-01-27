@@ -8,7 +8,7 @@
 #include <SparkFunMPU9250-DMP.h>
 
 #include "SparkFun_VL53L1X.h"
-#include <Adafruit_SleepyDog.h>
+//#include <Adafruit_SleepyDog.h>
 //#include <vl53l1x_class.h>
 //#include <vl53l1_error_codes.h>
 
@@ -117,16 +117,20 @@ int intervalReadTof=100;
 
 void setup() {
 
-delay(4000);
+//Watchdog.disable();
+
+delay(6000);
 
 Serial.begin(57600);
-Serial1.begin(57600);
+Serial1.begin(9600);
 
 pinMode(LED_BUILTIN,OUTPUT);
 digitalWrite(LED_BUILTIN,HIGH);
 
-
 Wire.begin();
+delay(200);
+
+Serial.println("BEGIN");
 
 #ifdef LOGGER
 
@@ -164,35 +168,6 @@ Wire.begin();
   rtc.start();
 #endif
 
-/*
-while(1){
-    DateTime now = rtc.now();
-
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(" (");
-    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    Serial.print(") ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println();
-
-    Serial.print(" since midnight 1/1/1970 = ");
-    Serial.print(now.unixtime());
-    Serial.print("s = ");
-    Serial.print(now.unixtime() / 86400L);
-    Serial.println("d");
-    delay(3000);
-}
-
-*/
-
 pinMode(socResetPin, OUTPUT);
 digitalWrite(socResetPin, HIGH);
 
@@ -229,9 +204,11 @@ digitalWrite(socResetPin, HIGH);
     Serial.println(F(" us are subtracted from all marks and added to all spaces for decoding"));
 #endif
 
-Watchdog.enable(4000);
+//Watchdog.enable(4000);
 
 // ToF Sensor initialization process
+
+#ifndef LOGGER
 
   Serial.println("VL53L1X Qwiic Test");
 
@@ -241,13 +218,15 @@ Watchdog.enable(4000);
     while (1){
       Serial.println("TOF not connecting.");
       delay(1000);
-      //restart();
+
     }
       
   } else {
     Serial.println("ToF Sensor online!");
     distanceSensor.startRanging();
   }
+
+#endif
 
     unsigned status;
     status = bme.begin(0x76);  
@@ -295,7 +274,13 @@ Watchdog.enable(4000);
   as7341.startReading();
 
   digitalWrite(LED_BUILTIN,LOW);
+  Serial.println("INITIALIZED");
 
+}
+
+String getToFDistanceDummy(){
+
+    return "0mm";
 }
 
 String getToFDistance(){
@@ -409,7 +394,11 @@ String getTimeNow(){
     return timeNow;
 }
 
+long dummyCounter=millis();
+
 void loop() {
+
+   // Watchdog.reset();
 
     /*
      * Check if received data is available and if yes, try to decode it.
@@ -618,7 +607,7 @@ void loop() {
         }
     } 
 #endif
-   
+
     // if (IrReceiver.decode())
 
     /*
@@ -676,15 +665,21 @@ void loop() {
     //if (millis()-timerReadTof>intervalReadTof){
     
     byte in = 0;
+
     if (Serial1.available()>0){
         in=Serial1.read();
     }
     
     if (in==97){
 
+        #ifndef LOGGER
         Serial1.print(getToFDistance());
         Serial1.print(" : ");
-        
+        #else
+        Serial1.print(getToFDistanceDummy());
+        Serial1.print(" : ");
+        #endif
+
         Serial1.print(getTemperatureStr());
         Serial1.print(" : ");
 
@@ -711,14 +706,27 @@ void loop() {
             Serial1.print(" : ");
         }
         
-        Serial1.println();
-        //Serial.println(millis()-timerReadTof);
+        Serial1.print(millis());
         timerReadTof=millis();
+
+        Serial1.print(" : ");
+
+        Serial1.print(getDateNow());
+        Serial1.print(" : ");
+
+        Serial1.print(getTimeNow());
+        Serial1.println(" : ");
+
     }
 
     // Debug enabled via Serial port to the computer
     // Otherwise only listen from the Serial 1 that is connected to the K210 SoC
     #ifdef DEBUG
+
+        //if(millis()-dummyCounter>5000){
+        //    in=97;
+        //    dummyCounter=millis();
+        //}
 
         if (Serial.available()>0){
             in=Serial.read();
@@ -726,8 +734,14 @@ void loop() {
         
         if (in==97){
 
+            #ifndef LOGGER
             Serial.print(getToFDistance());
             Serial.print(" : ");
+            #else
+            Serial.print(getToFDistanceDummy());
+            Serial.print(" : ");
+            #endif
+
             
             Serial.print(getTemperatureStr());
             Serial.print(" : ");
