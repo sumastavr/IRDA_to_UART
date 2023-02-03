@@ -704,6 +704,7 @@ void loop() {
         for (int i=0;i<12;i++){
             Serial1.print(bufferLightReadings[i]);
             Serial1.print(" : ");
+            delay(1);
         }
         
         Serial1.print(millis());
@@ -721,7 +722,7 @@ void loop() {
 
     // Debug enabled via Serial port to the computer
     // Otherwise only listen from the Serial 1 that is connected to the K210 SoC
-    #ifdef DEBUG
+    #ifndef DEBUG
 
         //if(millis()-dummyCounter>5000){
         //    in=97;
